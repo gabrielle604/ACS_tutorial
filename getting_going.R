@@ -500,3 +500,4 @@ hi_age_puma <- get_acs(
 
 hi_age_puma
 # end of the tutorial for 8.Feb.2023
+# checking yet another time to see if my terminal issue is fixed!
