@@ -274,4 +274,73 @@ plotly_plot <- ggplotly(md_plot_errorbar, tooltip = "x")
 saveWidget(plotly_plot, file = "md_plotly.html")
 
 # Part 3: Working with ACS microdata
+## Using microdata in tidycensus
+
+# Basic usage of get_pums()
+## get_pums() requires specifying one or more variables and the state for which 
+## you'd like to request data. state = 'all' can get data for the entire USA, 
+## but it takes a while!
+
+# The function defaults to the 5-year ACS with survey = "acs5"; 1-year ACS data 
+## is available with survey = "acs1".
+
+# The default year is 2021 in the latest version of tidycensus; data are 
+## available back to 2005 (1-year ACS) and 2005-2009 (5-year ACS). 2020 1-year 
+## data are not available.
+
+# Grab data for Hawaii, age, household type, sex; using the 1 year ACS
+
+library(tidycensus)
+hi_pums <- get_pums(
+  variables = c("SEX", "AGEP", "HHT"),
+  state = "HI",
+  survey = "acs1",
+  year = 2021
+)
+
+# Some columns are returned by default:
+## Household ID/serial number
+## Gives you people organized into households; can do family level analyses
+# a household of female age 32, male age 31, male age 12, male age 9, female age 2
+
+# this household of 5 with this structure (2 adults, 3 children); roughly 
+## representative of 134 households in Hawaii
+
+# woman, age 32 in this type of household represents 133 other women like her in Hawaii
+
+# Understanding default data from get_pums()
+## get_pums() returns some technical variables by default without the user needing to request them specifically. These include:
+  
+# SERIALNO: a serial number that uniquely identifies households in the sample;
+# SPORDER: the order of the person in the household; when combined with SERIALNO, uniquely identifies a person;
+# WGTP: the household weight;
+# PWGTP: the person weight
+
+# weights allow us to take population level data and make inferences
+
+# Specific question: How many people are age 39 approximately in Hawaii??
+
+hi_age_39 <- filter(hi_pums, AGEP == 39)
+print(sum(hi_pums$PWGTP))
+## [1] 1441553
+print(sum(hi_age_39$PWGTP))
+## [1] 17381
+
+# Are these estimates accurate?
+## PUMS weights are calibrated to population and household totals, so larger 
+## tabulations should align with published estimates
+
+get_acs("state", "B01003_001", state = "HI", survey = "acs1", year = 2021)
+
+# Smaller tabulations will be characterized by more uncertainty, and may deviate 
+## from published estimates
+
+# how to calculate the error of the number of 39 year olds in Hawaii
+
+# Workflows with PUMS data
+
+View(pums_variables)
+# detailed info about all the variables in the pums; browse!
+# variable code used to "fetch" data
+
 
