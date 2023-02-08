@@ -343,4 +343,159 @@ View(pums_variables)
 # detailed info about all the variables in the pums; browse!
 # variable code used to "fetch" data
 
+# The pums_variables dataset is your one-stop shop for browsing variables in the 
+## ACS PUMS
 
+# It is a long-form dataset that organizes specific value codes by variable so 
+## you know what you can get. You'll use information in the var_code column to 
+## fetch variables, but pay attention to the var_label, val_code, val_label, and 
+## data_type columns
+
+# Recoding PUMS variables
+## The recode = TRUE argument in get_pums() appends recoded columns to your 
+## returned dataset based on information available in pums_variables
+
+hi_pums_recoded <- get_pums(
+  variables = c("SEX", "AGEP", "HHT"),
+  state = "HI",
+  survey = "acs1",
+  year = 2021,
+  recode = TRUE
+)
+
+hi_pums_recoded
+
+# Using variable filters
+# PUMS datasets - especially from the 5-year ACS - can get quite large. The 
+## variables_filter argument can return a subset of data from the API, reducing 
+## long download times
+
+hi_pums_filtered <- get_pums(
+  variables = c("SEX", "AGEP", "HHT"),
+  state = "HI",
+  survey = "acs5",
+  variables_filter = list(
+    SEX = 2,
+    AGEP = 30:49
+  ),
+  year = 2021
+)
+
+hi_pums_filtered
+
+# Public Use Microdata Areas (PUMAs)
+## What is a PUMA?
+
+## Public Use Microdata Areas (PUMAs) are the smallest available geographies at 
+## which records are identifiable in the PUMS datasets
+
+## PUMAs are redrawn with each decennial US Census, and typically are home to 
+## 100,000-200,000 people. The 2021 ACS uses 2010 PUMAs; the 2022 ACS will align
+## with the new 2020 PUMAs
+
+## In large cities, a PUMA will represent a collection of nearby neighborhoods; 
+## in rural areas, it might represent several counties across a large area of a state
+
+## Let's preview some of next week's spatial tools to understand PUMA geography in Hawaii
+
+library(tigris)
+library(mapview)
+options(tigris_use_cache = TRUE)
+# Get the latest version of 2010 PUMAs
+hi_pumas <- pumas(state = "HI", cb = TRUE, year = 2019)
+hi_puma_map <- mapview(hi_pumas)
+
+hi_puma_map
+
+
+# Working with PUMAs in PUMS data
+
+## To get PUMA information in your output data, use the variable code PUMA
+
+hi_age_by_puma <- get_pums(
+  variables = c("PUMA", "AGEP"),
+  state = "HI",
+  survey = "acs5"
+)
+
+hi_age_by_puma
+
+# Handling uncertainty in tabulated PUMS estimates
+
+# Uncertainty in PUMS data
+## PUMS data represent a smaller sample than the regular ACS, so understanding 
+## error around tabulated estimates is critical
+
+## The Census Bureau recommends using successive difference replication to 
+## calculate standard errors, and provides replicate weights to do this
+
+## tidycensus includes tools to help you get replicate weights and format your 
+## data for appropriate survey-weighted analysis
+
+# Getting replicate weights
+## We can acquire either housing or person replicate weights with the rep_weights argument
+
+hi_pums_replicate <- get_pums(
+  variables = c("AGEP", "PUMA"),
+  state = "HI",
+  survey = "acs1",
+  year = 2021,
+  rep_weights = "person"
+)
+
+
+hi_pums_replicate
+
+
+# Handling complex survey samples
+
+## tidycensus links to the survey and srvyr packages for managing PUMS data as 
+## complex survey samples
+
+## The to_survey() function will format your data with replicate weights for 
+## correct survey-weighted estimation
+
+install.packages("srvyr")
+library(srvyr)
+hi_survey <- to_survey(
+  hi_pums_replicate,
+  type = "person"
+)
+class(hi_survey)
+
+# Survey-weighted tabulations
+## srvyr conveniently links R's survey infrastructure to familiar tidyverse-style workflows
+
+## Standard errors can be multiplied by 1.645 to get familiar 90% confidence level margins of error
+
+library(srvyr)
+hi_survey %>%
+  filter(AGEP == 39) %>%
+  survey_count() %>%
+  mutate(n_moe = n_se * 1.645)
+
+# Group-wise survey data analysis
+## A familiar group-wise tidyverse workflow can be applied correctly by srvyr 
+## for the calculation of medians and other summary statistics
+
+hi_survey %>%
+  group_by(PUMA) %>%
+  summarize(median_age = survey_median(AGEP)) %>%
+  mutate(median_age_moe = median_age_se * 1.645)
+
+# Checking our answers
+## Tabulated median ages are not identical to published estimates, but are 
+## very close
+
+## Use published estimates if available; use PUMS data to generate estimates 
+## that aren't available in the published tables
+
+hi_age_puma <- get_acs(
+  geography = "puma",
+  variables = "B01002_001",
+  state = "HI",
+  year = 2021,
+  survey = "acs1"
+)
+
+hi_age_puma
