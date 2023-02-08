@@ -115,3 +115,9 @@ ca_education <- get_acs(
                 percent_graduate = "DP02_0066P"),
   year = 2021
 )
+
+# Part 2: Analyzing and visualizing ACS data
+## tibble: representation of rectangular datasets
+
+library(tidyverse)
+arrange(median_income, estimate)
