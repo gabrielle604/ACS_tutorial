@@ -272,3 +272,6 @@ girafe(ggobj = md_plot_ggiraph) %>%
 library(htmlwidgets)
 plotly_plot <- ggplotly(md_plot_errorbar, tooltip = "x")
 saveWidget(plotly_plot, file = "md_plotly.html")
+
+# Part 3: Working with ACS microdata
+
