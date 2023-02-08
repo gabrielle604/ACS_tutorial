@@ -121,3 +121,154 @@ ca_education <- get_acs(
 
 library(tidyverse)
 arrange(median_income, estimate)
+# "estimate" is the column I want to use to sort the data
+# ascending order (default) of median income
+
+arrange(median_income, desc(estimate))
+# descending order 
+
+# Remove Puerto Rico from the median income dataset
+income_states_dc <- filter(median_income, !str_detect(NAME, "Puerto Rico"))
+arrange(income_states_dc, estimate)
+
+# Group-wise Census Data Analysis
+## The group_by() and summarize() functions in dplyr are used to implement the 
+## split-apply-combine method of data analysis
+
+highest_incomes <- median_income %>%
+  separate(NAME, into = c("county", "state"), sep = ", ") %>%
+  group_by(state) %>%
+  filter(estimate == max(estimate))
+
+# The default "tidy" format returned by tidycensus is designed to work well
+## with group-wise Census data analysis workflows
+
+# Visualizing ACS estimates
+## As opposed to decennial US Census data, ACS estimates include information on 
+## uncertainty, represented by the margin of error in the moe column
+## This means that in some cases, visualization of estimates without reference to 
+## the margin of error can be misleading
+## Walkthrough: building a margin of error visualization with ggplot2
+
+md_rent <- get_acs(
+  geography = "county",
+  variables = "B25031_001",
+  state = "MD",
+  year = 2021
+)
+
+# A basic plot
+## To visualize a dataset with ggplot2, we define an aesthetic and a geom
+
+ggplot(md_rent, aes(x = estimate, y = NAME)) + 
+  geom_point()
+
+# Problems with the plot:
+## The data are not sorted by value, making comparisons difficult
+## The axis and tick labels are not intuitive
+## The Y-axis labels contain repetitive information (" County, Maryland")
+## We've made no attempt to customize the styling
+
+# "reorder" to sort counties by their estimates
+
+md_plot <- ggplot(md_rent, aes(x = estimate, 
+                               y = reorder(NAME, estimate))) +
+  geom_point(color = "darkred", size = 2)
+
+md_plot
+
+# Cleaning up tick-labels
+## using a combination of functions in the scales package and custom-defined 
+## functions, tick labels can be formatted any way you want
+
+library(scales)
+
+md_plot <- md_plot + 
+  scale_x_continuous(labels = label_dollar()) +
+  scale_y_discrete(labels = function(x) str_remove(x, " County, Maryland|, Maryland"))
+
+md_plot
+
+# this is saying: for every label x, remove county, maryland, or maryland
+# plus, labeling units: median gross dollars
+
+md_plot <- md_plot + 
+  labs(title = "Median gross rent, 2017-2021 ACS",
+       subtitle = "Counties in Maryland",
+       caption = "Data acquired with R and tidycensus",
+       x = "ACS estimate",
+       y = "") + 
+  theme_minimal(base_size = 12)
+
+md_plot
+
+# this can be misleading, because the dot isn't taking into account/visualizing 
+## the margin of error (moe)
+
+md_rent %>%
+  arrange(desc(estimate)) %>%
+  slice(5:9)
+
+# How to visualize uncertainty in an intuitive way?
+
+md_plot_errorbar <- ggplot(md_rent, aes(x = estimate, 
+                                        y = reorder(NAME, estimate))) + 
+  geom_errorbar(aes(xmin = estimate - moe, xmax = estimate + moe),
+                width = 0.5, linewidth = 0.5) +
+  geom_point(color = "darkred", size = 2) + 
+  scale_x_continuous(labels = label_dollar()) + 
+  scale_y_discrete(labels = function(x) str_remove(x, " County, Maryland|, Maryland")) + 
+  labs(title = "Median gross rent, 2017-2021 ACS",
+       subtitle = "Counties in Maryland",
+       caption = "Data acquired with R and tidycensus. Error bars represent margin of error around estimates.",
+       x = "ACS estimate",
+       y = "") + 
+  theme_minimal(base_size = 12)
+
+md_plot_errorbar
+
+# Making Plots Interactive
+# think: gapminder hans rosling interactive bubbles
+## Quick interactivity with ggplotly()
+## The plotly R package is an interface to the Plotly JavaScript library for 
+## full-featured interactive plotting
+## Resource: _Interactive web-based data visualization with R, plotly, and Shiny
+## ggplotly() automatically (and intelligently) converts ggplot2 graphics to 
+## interactive charts
+
+library(plotly)
+ggplotly(md_plot_errorbar, tooltip = "x")
+# use your cursor on the "viewer" of the plot to zoom in and out!
+
+# Interactivity with ggiraph
+# ggiraph: Alternative approach for making ggplot2 graphics interactive
+## Includes *_interactive() versions of ggplot2 geoms that can bring chart elements to life
+## Next week: we'll use ggiraph for interactive mapping!
+
+# ggiraph example: 
+
+library(ggiraph)
+md_plot_ggiraph <- ggplot(md_rent, aes(x = estimate, 
+                                       y = reorder(NAME, estimate),
+                                       tooltip = estimate,
+                                       data_id = GEOID)) +
+  geom_errorbar(aes(xmin = estimate - moe, xmax = estimate + moe), 
+                width = 0.5, size = 0.5) + 
+  geom_point_interactive(color = "darkred", size = 2) +
+  scale_x_continuous(labels = label_dollar()) + 
+  scale_y_discrete(labels = function(x) str_remove(x, " County, Maryland|, Maryland")) + 
+  labs(title = "Median gross rent, 2017-2021 ACS",
+       subtitle = "Counties in Maryland",
+       caption = "Data acquired with R and tidycensus. Error bars represent margin of error around estimates.",
+       x = "ACS estimate",
+       y = "") + 
+  theme_minimal(base_size = 12)
+girafe(ggobj = md_plot_ggiraph) %>%
+  girafe_options(opts_hover(css = "fill:cyan;"))
+
+# To save an interactive plot to a standalone HTML file for display on your 
+## website, use the saveWidget() function in the htmlwidgets package
+
+library(htmlwidgets)
+plotly_plot <- ggplotly(md_plot_errorbar, tooltip = "x")
+saveWidget(plotly_plot, file = "md_plotly.html")
